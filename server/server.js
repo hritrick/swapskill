@@ -25,6 +25,7 @@ if (process.env.NODE_ENV !== 'test') {
 const connectDB = require('./config/db');
 const { errorHandler } = require('./middleware/errorMiddleware');
 const { setIo } = require('./controllers/swapRequestController');
+const { setIo: setSkillIo } = require('./controllers/skillController');
 
 // (Database connection is initiated before server.listen below; tests manage their own in-memory connection)
 
@@ -99,8 +100,9 @@ const io = new Server(server, {
   },
 });
 
-// Inject io into the swapRequestController (avoids circular require)
+// Inject io into controllers (avoids circular require)
 setIo(io);
+setSkillIo(io);
 
 // JWT authentication for socket connections
 io.use((socket, next) => {

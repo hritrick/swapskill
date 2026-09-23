@@ -1,10 +1,14 @@
 import { createContext, useState, useEffect, useContext } from "react";
 import { AppContext } from "./AppContext.jsx";
+import { SwapsContext } from "./SwapsContext.jsx";
 
 export const SkillsContext = createContext(null);
 
 export function SkillsProvider({ children }) {
   const { user } = useContext(AppContext);
+  const swapsContext = useContext(SwapsContext);
+  const socket = swapsContext?.socket;
+
   const [skills, setSkills] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -29,6 +33,42 @@ export function SkillsProvider({ children }) {
     fetchSkills();
   }, []);
 
+  // Listen for real-time skill updates via Socket.IO
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleSkillNew = (newSkill) => {
+      setSkills((prev) => {
+        const id = newSkill._id || newSkill.id;
+        if (prev.some((s) => (s._id || s.id) === id)) {
+          return prev;
+        }
+        return [...prev, newSkill];
+      });
+    };
+
+    const handleSkillUpdated = (updatedSkill) => {
+      setSkills((prev) => {
+        const id = updatedSkill._id || updatedSkill.id;
+        return prev.map((s) => ((s._id || s.id) === id ? updatedSkill : s));
+      });
+    };
+
+    const handleSkillDeleted = ({ _id }) => {
+      setSkills((prev) => prev.filter((s) => (s._id || s.id) !== _id));
+    };
+
+    socket.on('skill:new', handleSkillNew);
+    socket.on('skill:updated', handleSkillUpdated);
+    socket.on('skill:deleted', handleSkillDeleted);
+
+    return () => {
+      socket.off('skill:new', handleSkillNew);
+      socket.off('skill:updated', handleSkillUpdated);
+      socket.off('skill:deleted', handleSkillDeleted);
+    };
+  }, [socket]);
+
   const addSkill = async (newSkill) => {
     if (!user) throw new Error('You must be logged in to post a trade ticket');
     try {
@@ -42,7 +82,13 @@ export function SkillsProvider({ children }) {
       });
       const data = await response.json();
       if (response.ok) {
-        setSkills(prev => [...prev, data.data]);
+        setSkills((prev) => {
+          const id = data.data._id || data.data.id;
+          if (prev.some((s) => (s._id || s.id) === id)) {
+            return prev;
+          }
+          return [...prev, data.data];
+        });
         return data;
       } else {
         const errorMsg = data.errors && data.errors.length > 0
@@ -66,7 +112,7 @@ export function SkillsProvider({ children }) {
         }
       });
       if (response.ok) {
-        setSkills(prev => prev.filter(s => s._id !== id));
+        setSkills(prev => prev.filter(s => (s._id || s.id) !== id));
       } else {
         const data = await response.json();
         const errorMsg = data.errors && data.errors.length > 0

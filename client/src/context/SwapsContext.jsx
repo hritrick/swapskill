@@ -145,6 +145,7 @@ export function SwapsProvider({ children }) {
     openProposal,
     closeProposal,
     socketConnected: connected,
+    socket,
   };
 
   return <SwapsContext.Provider value={value}>{children}</SwapsContext.Provider>;

@@ -1,6 +1,11 @@
 const Skill = require('../models/Skill');
 const ApiError = require('../utils/ApiError');
 
+let io;
+const setIo = (socketIo) => {
+  io = socketIo;
+};
+
 // ─── Pagination defaults ─────────────────────────────────────────────────────
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 9;
@@ -84,10 +89,21 @@ const createSkill = async (req, res, next) => {
     const skill = await Skill.create({ title, wants, cat, owner: req.user.id });
     const populatedSkill = await skill.populate('owner', 'name email');
 
+    const skillObj = populatedSkill.toObject();
+    const transformed = {
+      ...skillObj,
+      by: populatedSkill.owner ? (populatedSkill.owner.name || 'Unknown') : 'Unknown',
+      ownerId: populatedSkill.owner ? (populatedSkill.owner._id || populatedSkill.owner).toString() : null,
+    };
+
+    if (io) {
+      io.emit('skill:new', transformed);
+    }
+
     res.status(201).json({
       success: true,
       message: 'Skill listed successfully',
-      data: populatedSkill,
+      data: transformed,
     });
   } catch (error) {
     next(error);
@@ -116,11 +132,22 @@ const updateSkill = async (req, res, next) => {
     if (cat !== undefined) update.cat = cat;
 
     const updatedSkill = await Skill.findByIdAndUpdate(req.params.id, update, {
-      new: true,
+      returnDocument: 'after',
       runValidators: true,
     }).populate('owner', 'name email');
 
-    res.status(200).json({ success: true, message: 'Skill updated', data: updatedSkill });
+    const skillObj = updatedSkill.toObject();
+    const transformed = {
+      ...skillObj,
+      by: updatedSkill.owner ? (updatedSkill.owner.name || 'Unknown') : 'Unknown',
+      ownerId: updatedSkill.owner ? (updatedSkill.owner._id || updatedSkill.owner).toString() : null,
+    };
+
+    if (io) {
+      io.emit('skill:updated', transformed);
+    }
+
+    res.status(200).json({ success: true, message: 'Skill updated', data: transformed });
   } catch (error) {
     next(error);
   }
@@ -140,10 +167,15 @@ const deleteSkill = async (req, res, next) => {
     }
 
     await skill.deleteOne();
+
+    if (io) {
+      io.emit('skill:deleted', { _id: req.params.id });
+    }
+
     res.status(200).json({ success: true, message: 'Skill deleted successfully' });
   } catch (error) {
     next(error);
   }
 };
 
-module.exports = { getSkills, getSkillById, createSkill, updateSkill, deleteSkill };
+module.exports = { getSkills, getSkillById, createSkill, updateSkill, deleteSkill, setIo };
