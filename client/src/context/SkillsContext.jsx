@@ -30,7 +30,7 @@ export function SkillsProvider({ children }) {
   }, []);
 
   const addSkill = async (newSkill) => {
-    if (!user) return;
+    if (!user) throw new Error('You must be logged in to post a trade ticket');
     try {
       const response = await fetch('/api/skills', {
         method: 'POST',
@@ -45,7 +45,10 @@ export function SkillsProvider({ children }) {
         setSkills(prev => [...prev, data.data]);
         return data;
       } else {
-        throw new Error(data.message || 'Failed to add skill');
+        const errorMsg = data.errors && data.errors.length > 0
+          ? data.errors.map(e => e.message).join('. ')
+          : (data.message || 'Failed to add skill');
+        throw new Error(errorMsg);
       }
     } catch (error) {
       console.error("Failed to add skill", error);
@@ -54,7 +57,7 @@ export function SkillsProvider({ children }) {
   };
 
   const deleteSkill = async (id) => {
-    if (!user) return;
+    if (!user) throw new Error('You must be logged in to delete a skill');
     try {
       const response = await fetch(`/api/skills/${id}`, {
         method: 'DELETE',
@@ -66,7 +69,10 @@ export function SkillsProvider({ children }) {
         setSkills(prev => prev.filter(s => s._id !== id));
       } else {
         const data = await response.json();
-        throw new Error(data.message || 'Failed to delete skill');
+        const errorMsg = data.errors && data.errors.length > 0
+          ? data.errors.map(e => e.message).join('. ')
+          : (data.message || 'Failed to delete skill');
+        throw new Error(errorMsg);
       }
     } catch (error) {
       console.error("Failed to delete skill", error);

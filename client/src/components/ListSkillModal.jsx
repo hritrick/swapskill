@@ -7,6 +7,7 @@ export default function ListSkillModal({ modal }) {
   const [wants, setWants] = useState("");
   const [cat, setCat] = useState("tech");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   if (!modal.isOpen) return null;
@@ -14,17 +15,31 @@ export default function ListSkillModal({ modal }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    const trimmedTitle = title.trim();
+    const trimmedWants = wants.trim();
+    if (!trimmedTitle) {
+      setError("Please enter what you can teach");
+      return;
+    }
+    if (!trimmedWants) {
+      setError("Please enter what you want to learn");
+      return;
+    }
     try {
-      await addSkill({ title, wants, cat });
+      setSubmitting(true);
+      await addSkill({ title: trimmedTitle, wants: trimmedWants, cat });
       setSubmitted(true);
     } catch (err) {
       setError(err.message || "Failed to post ticket");
+    } finally {
+      setSubmitting(false);
     }
   }
 
   function handleClose() {
     modal.close();
     setSubmitted(false);
+    setSubmitting(false);
     setTitle("");
     setWants("");
     setError("");
@@ -49,6 +64,7 @@ export default function ListSkillModal({ modal }) {
               <input
                 type="text"
                 required
+                maxLength={100}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. Watercolor painting"
@@ -60,6 +76,7 @@ export default function ListSkillModal({ modal }) {
               <input
                 type="text"
                 required
+                maxLength={100}
                 value={wants}
                 onChange={(e) => setWants(e.target.value)}
                 placeholder="e.g. Basic guitar chords"
@@ -82,8 +99,14 @@ export default function ListSkillModal({ modal }) {
             
             {error && <p className="text-xs text-red-600 font-mono">{error}</p>}
 
-            <button type="submit" className="w-full mt-2 py-3 rounded-full font-semibold text-sm bg-teal text-paper">
-              Post trade ticket
+            <button
+              type="submit"
+              disabled={submitting}
+              className={`w-full mt-2 py-3 rounded-full font-semibold text-sm bg-teal text-paper transition-opacity ${
+                submitting ? "opacity-60 cursor-not-allowed" : "hover:opacity-90"
+              }`}
+            >
+              {submitting ? "Posting..." : "Post trade ticket"}
             </button>
           </form>
         ) : (

@@ -12,24 +12,21 @@ const jwt = require('jsonwebtoken');
 dotenv.config();
 
 // ─── Env-boot guard ───────────────────────────────────────────────────────────
-// Fail fast with a clear message so nobody spends 20 minutes wondering why
-// tokens verify to null or the DB connection silently hangs.
-const REQUIRED_ENV = ['JWT_SECRET', 'MONGODB_URI'];
-const missing = REQUIRED_ENV.filter((key) => !process.env[key]);
-if (missing.length > 0) {
-  console.error(`\n❌  Missing required environment variables: ${missing.join(', ')}`);
-  console.error('    Copy server/.env.example to server/.env and fill in the values.\n');
-  process.exit(1);
+if (process.env.NODE_ENV !== 'test') {
+  const REQUIRED_ENV = ['JWT_SECRET', 'MONGODB_URI'];
+  const missing = REQUIRED_ENV.filter((key) => !process.env[key]);
+  if (missing.length > 0) {
+    console.error(`\n❌  Missing required environment variables: ${missing.join(', ')}`);
+    console.error('    Copy server/.env.example to server/.env and fill in the values.\n');
+    process.exit(1);
+  }
 }
 
 const connectDB = require('./config/db');
 const { errorHandler } = require('./middleware/errorMiddleware');
 const { setIo } = require('./controllers/swapRequestController');
 
-// Connect to database (skipped in test mode; tests manage their own in-memory connection)
-if (process.env.NODE_ENV !== 'test') {
-  connectDB();
-}
+// (Database connection is initiated before server.listen below; tests manage their own in-memory connection)
 
 const app = express();
 
@@ -132,8 +129,12 @@ io.on('connection', (socket) => {
 // ─── Start server ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5001;
 if (process.env.NODE_ENV !== 'test') {
-  server.listen(PORT, () => {
-    console.log(`\n🚀  SwapSkill API running on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
+  connectDB().then(() => {
+    server.listen(PORT, () => {
+      console.log(`\n🚀  SwapSkill API running on port ${PORT} (${process.env.NODE_ENV || 'development'})`);
+    });
+  }).catch((err) => {
+    console.error('Failed to initialize database:', err);
   });
 }
 

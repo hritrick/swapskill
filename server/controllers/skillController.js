@@ -37,11 +37,20 @@ const getSkills = async (req, res, next) => {
       Skill.countDocuments(filter),
     ]);
 
+    const transformedSkills = skills.map((skill) => {
+      const { __v, ...rest } = skill;
+      return {
+        ...rest,
+        by: skill.owner ? (skill.owner.name || 'Unknown') : 'Unknown',
+        ownerId: skill.owner ? (skill.owner._id || skill.owner).toString() : null,
+      };
+    });
+
     const totalPages = Math.ceil(totalCount / limit);
 
     res.status(200).json({
       success: true,
-      data: skills,
+      data: transformedSkills,
       page,
       totalPages,
       totalCount,

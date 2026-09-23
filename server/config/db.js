@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const seedInitialData = require('./seeder');
 
+let mongodInstance = null;
+
 const connectDB = async () => {
   // 1. Try connecting to configured MongoDB Atlas / URI
   if (process.env.MONGODB_URI) {
@@ -21,8 +23,8 @@ const connectDB = async () => {
   console.log('Falling back to local in-memory MongoDB...');
   try {
     const { MongoMemoryServer } = require('mongodb-memory-server');
-    const mongod = await MongoMemoryServer.create();
-    const uri = mongod.getUri();
+    mongodInstance = await MongoMemoryServer.create();
+    const uri = mongodInstance.getUri();
     const _conn = await mongoose.connect(uri);
     console.log(`In-memory MongoDB running at: ${uri}`);
     await seedInitialData();
@@ -31,5 +33,35 @@ const connectDB = async () => {
     process.exit(1);
   }
 };
+
+const cleanup = async () => {
+  if (mongodInstance) {
+    try {
+      await mongodInstance.stop();
+    } catch (err) {
+      console.error('Error stopping in-memory MongoDB:', err.message);
+    }
+  }
+  if (mongoose.connection.readyState !== 0) {
+    try {
+      await mongoose.disconnect();
+    } catch (err) {
+      console.error('Error disconnecting mongoose:', err.message);
+    }
+  }
+};
+
+process.once('SIGUSR2', async () => {
+  await cleanup();
+  process.kill(process.pid, 'SIGUSR2');
+});
+process.on('SIGINT', async () => {
+  await cleanup();
+  process.exit(0);
+});
+process.on('SIGTERM', async () => {
+  await cleanup();
+  process.exit(0);
+});
 
 module.exports = connectDB;

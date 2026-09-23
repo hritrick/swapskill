@@ -34,7 +34,12 @@ export function AppProvider({ children }) {
         body: JSON.stringify({ email, password }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Login failed');
+      if (!response.ok) {
+        const errorMsg = data.errors && data.errors.length > 0
+          ? data.errors.map(e => e.message).join('. ')
+          : (data.message || 'Login failed');
+        throw new Error(errorMsg);
+      }
       setUser(data.data);
     } finally {
       setLoadingAuth(false);
@@ -50,7 +55,12 @@ export function AppProvider({ children }) {
         body: JSON.stringify({ name, email, password }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Registration failed');
+      if (!response.ok) {
+        const errorMsg = data.errors && data.errors.length > 0
+          ? data.errors.map(e => e.message).join('. ')
+          : (data.message || 'Registration failed');
+        throw new Error(errorMsg);
+      }
       setUser(data.data);
     } finally {
       setLoadingAuth(false);

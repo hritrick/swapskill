@@ -8,11 +8,21 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:5001',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            console.warn('[vite proxy /api error]', err.message);
+          });
+        },
       },
       '/socket.io': {
         target: 'http://localhost:5001',
         ws: true,
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('error', (err) => {
+            console.warn('[vite proxy /socket.io error]', err.message);
+          });
+        },
       },
     },
   },

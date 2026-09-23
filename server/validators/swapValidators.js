@@ -12,9 +12,9 @@ const createSwapSchema = z.object({
   skill: objectId('skill'),
   offeredSkill: z
     .string({ required_error: 'offeredSkill is required' })
-    .min(2, 'Offered skill name must be at least 2 characters')
-    .max(100)
-    .trim(),
+    .trim()
+    .min(1, 'Offered skill name cannot be empty')
+    .max(100),
   hours: z
     .number({ required_error: 'hours is required' })
     .positive('Hours must be a positive number')

@@ -1,18 +1,40 @@
+const { describe, it, before, after, beforeEach } = require('node:test');
+const { expect } = require('expect');
 const request = require('supertest');
 const mongoose = require('mongoose');
+const { MongoMemoryServer } = require('mongodb-memory-server');
+
+process.env.NODE_ENV = 'test';
+process.env.JWT_SECRET = 'test_jwt_secret_min_32_characters_long_for_signing';
+
 const { app } = require('../server');
 const User = require('../models/User');
 const Skill = require('../models/Skill');
 
+let mongod;
 let token;
 let userId;
 
+before(async () => {
+  mongod = await MongoMemoryServer.create();
+  if (mongoose.connection.readyState === 0) {
+    await mongoose.connect(mongod.getUri());
+  }
+});
 
+after(async () => {
+  if (mongoose.connection.readyState !== 0) {
+    await mongoose.connection.dropDatabase();
+    await mongoose.connection.close();
+  }
+  if (mongod) {
+    await mongod.stop();
+  }
+});
 
 beforeEach(async () => {
   await User.deleteMany({});
   await Skill.deleteMany({});
-  // Register and login a test user
   const res = await request(app).post('/api/auth/register').send({
     name: 'Dev',
     email: 'dev@test.com',
@@ -34,7 +56,6 @@ describe('GET /api/skills', () => {
   });
 
   it('filters by category', async () => {
-    // Create one tech, one craft skill
     const user = await User.findById(userId);
     await Skill.create([
       { title: 'Python basics', cat: 'tech', wants: 'Guitar', owner: user._id },
@@ -48,7 +69,6 @@ describe('GET /api/skills', () => {
 
   it('respects pagination limit', async () => {
     const user = await User.findById(userId);
-    // Create 5 skills
     await Skill.create(
       Array.from({ length: 5 }, (_, i) => ({
         title: `Skill ${i}`,
@@ -105,6 +125,19 @@ describe('POST /api/skills', () => {
     expect(res.status).toBe(400);
     expect(res.body.errors).toBeInstanceOf(Array);
   });
+
+  it('successfully creates short skills (e.g. 1 character names like "x" and "y")', async () => {
+    const res = await request(app)
+      .post('/api/skills')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ title: 'x', wants: 'y', cat: 'wellness' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.title).toBe('x');
+    expect(res.body.data.wants).toBe('y');
+    expect(res.body.data.cat).toBe('wellness');
+  });
 });
 
 describe('PUT /api/skills/:id', () => {
@@ -129,7 +162,6 @@ describe('PUT /api/skills/:id', () => {
   });
 
   it('returns 403 for non-owner', async () => {
-    // Create another user
     const other = await request(app).post('/api/auth/register').send({
       name: 'Other',
       email: 'other@test.com',

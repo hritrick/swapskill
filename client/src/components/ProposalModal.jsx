@@ -9,7 +9,12 @@ export default function ProposalModal() {
   const { skills } = useContext(SkillsContext);
 
   // Build the list of skills the signed-in user can offer from their own listings
-  const mySkills = skills.filter((s) => s.ownerId === user?._id);
+  const mySkills = skills.filter(
+    (s) => (s.ownerId || s.owner?._id || s.owner)?.toString() === user?._id?.toString()
+  );
+
+  const targetOwnerId = proposalTarget ? (proposalTarget.ownerId || proposalTarget.owner?._id || proposalTarget.owner) : null;
+  const targetOwnerName = proposalTarget ? (proposalTarget.by || proposalTarget.owner?.name || 'Community Member') : 'Community Member';
 
   const [offer, setOffer] = useState('');
   const [sent, setSent] = useState(false);
@@ -29,6 +34,11 @@ export default function ProposalModal() {
     e.preventDefault();
     if (!user?.token) return;
 
+    if (!targetOwnerId) {
+      setError('Could not identify the skill owner. Please try again.');
+      return;
+    }
+
     const offeredSkill = offer.trim();
     if (!offeredSkill) {
       setError('Please choose or enter a skill to offer.');
@@ -45,14 +55,19 @@ export default function ProposalModal() {
           Authorization: `Bearer ${user.token}`,
         },
         body: JSON.stringify({
-          toUser: proposalTarget.ownerId,
+          toUser: typeof targetOwnerId === 'object' ? targetOwnerId.toString() : targetOwnerId,
           skill: proposalTarget._id,
           offeredSkill,
           hours: 1, // Default 1 credit — can be made a form field later
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to send proposal');
+      if (!res.ok) {
+        const errorMsg = data.errors && data.errors.length > 0
+          ? data.errors.map(e => e.message).join('. ')
+          : (data.message || 'Failed to send proposal');
+        throw new Error(errorMsg);
+      }
       setSent(true);
     } catch (err) {
       setError(err.message);
@@ -81,7 +96,7 @@ export default function ProposalModal() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="text-xs font-mono uppercase tracking-widest text-ink/60">
-                Requesting from {proposalTarget.by}
+                Requesting from {targetOwnerName}
               </label>
               <div className="mt-1 w-full border border-line rounded-lg px-3 py-2.5 text-sm bg-white/50 text-ink/70">
                 {proposalTarget.title}
@@ -129,7 +144,7 @@ export default function ProposalModal() {
           </form>
         ) : (
           <p className="mt-4 text-sm text-center font-mono text-teal-dark">
-            ✓ Proposal sent to {proposalTarget.by} — you&apos;ll get a notification when they
+            ✓ Proposal sent to {targetOwnerName} — you&apos;ll get a notification when they
             respond.
           </p>
         )}

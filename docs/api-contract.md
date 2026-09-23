@@ -167,7 +167,7 @@ Public.
 
 **Request body**
 ```json
-{ "title": "string (min 3, max 100)", "wants": "string (min 3, max 100)", "cat": "craft | tech | language | wellness" }
+{ "title": "string (min 1, max 100)", "wants": "string (min 1, max 100)", "cat": "craft | tech | language | wellness" }
 ```
 
 **Success `201`**
