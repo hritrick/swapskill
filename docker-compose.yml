@@ -1,0 +1,81 @@
+version: '3.9'
+
+services:
+  # ─── MongoDB ────────────────────────────────────────────────────────────────
+  mongo:
+    image: mongo:7
+    container_name: swapskill_mongo
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - swapskill_net
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Express / Socket.IO API ─────────────────────────────────────────────────
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: swapskill_server
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5001
+      MONGODB_URI: mongodb://mongo:27017/swapskill
+      JWT_SECRET: ${JWT_SECRET:-change_this_in_production}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1d}
+      CLIENT_URL: http://localhost:3000
+    ports:
+      - "5001:5001"
+    networks:
+      - swapskill_net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ─── React / nginx client ────────────────────────────────────────────────────
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: swapskill_client
+    restart: unless-stopped
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+    networks:
+      - swapskill_net
+
+# ─── Named volumes ──────────────────────────────────────────────────────────
+volumes:
+  mongo_data:
+    driver: local
+
+# ─── Networks ────────────────────────────────────────────────────────────────
+networks:
+  swapskill_net:
+    driver: bridge
+
+# ─── Usage ───────────────────────────────────────────────────────────────────
+# 1. docker compose up --build        (first run — builds images and starts all services)
+# 2. docker compose up                (subsequent runs — reuses built images)
+# 3. docker compose down              (stop and remove containers; data persists in mongo_data volume)
+# 4. docker compose down -v           (stop and DELETE all data — fresh start)
+#
+# App will be available at: http://localhost:3000
+# API directly at:          http://localhost:5001
+#
+# Set JWT_SECRET in a .env file at the repo root or via shell export before running.

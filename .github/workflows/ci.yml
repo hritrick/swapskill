@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ─── Client: lint + build ───────────────────────────────────────────────────
+  client:
+    name: Client (lint + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+  # ─── Server: lint + test + newman ──────────────────────────────────────────
+  server:
+    name: Server (lint + test + newman)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+
+    env:
+      NODE_ENV: test
+      JWT_SECRET: ci_test_secret_do_not_use_in_prod
+      # MONGODB_URI intentionally omitted — server falls back to mongodb-memory-server
+      CLIENT_URL: http://localhost:5173
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
+      - name: Install newman
+        run: npm install -g newman
+
+      - name: Start server (background)
+        run: node server.js &
+        env:
+          PORT: 5001
+
+      - name: Wait for server to be ready
+        run: |
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:5001/health && break || sleep 2
+          done
+
+      - name: Run Postman collection (newman)
+        run: |
+          newman run ../docs/postman/SwapSkill.postman_collection.json \
+            -e ../docs/postman/SwapSkill.postman_environment.json \
+            --env-var "baseUrl=http://localhost:5001" \
+            --bail \
+            --timeout-request 10000 \
+            --folder "Auth" \
+            --folder "Skills" \
+            --folder "Users" \
+            --folder "Health"
+        # Note: "Swaps" folder skipped in CI because it requires manual targetUserId setup.
+        # The swap routes are covered by server/tests/swapRequests.test.js instead.

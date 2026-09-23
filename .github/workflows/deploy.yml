@@ -1,0 +1,51 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# Only run deploy AFTER CI passes on the same commit
+# (GitHub automatically gates this when ci.yml is a required status check)
+
+jobs:
+  # ─── Frontend → Vercel ──────────────────────────────────────────────────────
+  deploy-client:
+    name: Deploy client to Vercel
+    runs-on: ubuntu-latest
+    needs: []  # runs concurrently; gate via branch protection requiring ci.yml to pass
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          working-directory: client
+          vercel-args: '--prod'
+
+  # ─── Backend → Render ───────────────────────────────────────────────────────
+  deploy-server:
+    name: Deploy server to Render
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Render deploy hook
+        run: |
+          curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}" \
+            | grep -q "^2" && echo "Deploy triggered" || (echo "Deploy hook failed" && exit 1)
+
+# ─── Required GitHub repository secrets ────────────────────────────────────────
+# Set these in: Settings > Secrets and variables > Actions > New repository secret
+#
+#   VERCEL_TOKEN        — from Vercel dashboard > Account Settings > Tokens
+#   VERCEL_ORG_ID       — from Vercel dashboard > Settings (team or personal)
+#   VERCEL_PROJECT_ID   — from Vercel project Settings > General
+#   RENDER_DEPLOY_HOOK  — from Render service > Settings > Deploy Hooks
+#
+# NOTE: MONGODB_URI and JWT_SECRET are set directly in Render's environment
+# settings, not here. Never put secrets in workflow files.

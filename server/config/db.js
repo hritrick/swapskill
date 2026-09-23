@@ -23,7 +23,7 @@ const connectDB = async () => {
     const { MongoMemoryServer } = require('mongodb-memory-server');
     const mongod = await MongoMemoryServer.create();
     const uri = mongod.getUri();
-    const conn = await mongoose.connect(uri);
+    const _conn = await mongoose.connect(uri);
     console.log(`In-memory MongoDB running at: ${uri}`);
     await seedInitialData();
   } catch (err) {
